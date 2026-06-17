@@ -1,6 +1,33 @@
-export type { AuthResponse, User, UserRole } from './auth'
-export type { Project, ProjectStatus } from './project'
-export type { Task, TaskPriority, TaskStatus } from './task'
-export type { Risk, RiskCategory, RiskLevel, RiskStatus } from './risk'
-export type { ProgressReport } from './report'
+export type { ErrorResponse } from './common'
+export {
+  type AuthResponse,
+  type LoginRequest,
+  type RegisterRequest,
+  type User,
+  UserRole,
+} from './auth'
+export {
+  type CreateProjectRequest,
+  type Project,
+  ProjectMemberRole,
+  type ProjectMemberRequest,
+  type ProjectRegistration,
+  type ProjectRegistrationRequest,
+  ProjectStatus,
+  type UpdateProjectRequest,
+} from './project'
+export { type Task, TaskPriority, type TaskRequest, TaskStatus } from './task'
+export {
+  type Risk,
+  RiskCategory,
+  RiskLevel,
+  type RiskRequest,
+  RiskStatus,
+} from './risk'
+export {
+  type CreateProgressReportRequest,
+  type ProgressReport,
+  type UpdateProgressReportRequest,
+} from './report'
 export type { DocumentRecord } from './document'
+export type { DashboardStatistics } from './dashboard'

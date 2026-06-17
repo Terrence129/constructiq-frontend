@@ -1,4 +1,4 @@
-import type { TaskPriority } from '../../types'
+import { TaskPriority } from '../../types'
 
 const labelMap: Record<TaskPriority, string> = {
   LOW: 'Low',
@@ -8,7 +8,8 @@ const labelMap: Record<TaskPriority, string> = {
 }
 
 export function TaskPriorityBadge({ priority }: { priority: TaskPriority }) {
-  const isCritical = priority === 'CRITICAL' || priority === 'HIGH'
+  const isCritical =
+    priority === TaskPriority.CRITICAL || priority === TaskPriority.HIGH
 
   return (
     <span
