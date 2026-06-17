@@ -2,12 +2,30 @@ import { TaskPriorityBadge } from '../components/task/TaskPriorityBadge'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import type { TaskPriority } from '../types'
+import { TaskPriority } from '../types'
 
 const tasks: Array<[string, string, TaskPriority, string, string]> = [
-  ['Foundation acceptance file review', 'Harbour Tower Phase 1', 'HIGH', 'Jane Builder', '2026-07-15'],
-  ['MEP reserved opening inspection', 'East Utility Tunnel', 'MEDIUM', 'Site Engineer', '2026-07-20'],
-  ['Steel supply plan confirmation', 'Harbour Tower Phase 1', 'CRITICAL', 'Procurement Manager', '2026-07-10'],
+  [
+    'Foundation acceptance file review',
+    'Harbour Tower Phase 1',
+    TaskPriority.HIGH,
+    'Jane Builder',
+    '2026-07-15',
+  ],
+  [
+    'MEP reserved opening inspection',
+    'East Utility Tunnel',
+    TaskPriority.MEDIUM,
+    'Site Engineer',
+    '2026-07-20',
+  ],
+  [
+    'Steel supply plan confirmation',
+    'Harbour Tower Phase 1',
+    TaskPriority.CRITICAL,
+    'Procurement Manager',
+    '2026-07-10',
+  ],
 ]
 
 export function TasksPage() {

@@ -2,12 +2,12 @@ import { RiskLevelBadge } from '../components/risk/RiskLevelBadge'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import type { RiskLevel } from '../types'
+import { RiskLevel } from '../types'
 
 const risks: Array<[string, string, string, string, RiskLevel]> = [
-  ['Steel delivery delay', 'Schedule', '4', '5', 'CRITICAL'],
-  ['Edge protection reinspection', 'Safety', '3', '4', 'HIGH'],
-  ['Drawing change confirmation', 'Design', '2', '3', 'MEDIUM'],
+  ['Steel delivery delay', 'Schedule', '4', '5', RiskLevel.CRITICAL],
+  ['Edge protection reinspection', 'Safety', '3', '4', RiskLevel.HIGH],
+  ['Drawing change confirmation', 'Design', '2', '3', RiskLevel.MEDIUM],
 ]
 
 export function RisksPage() {

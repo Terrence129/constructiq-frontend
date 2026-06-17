@@ -1,4 +1,4 @@
-import type { RiskLevel } from '../../types'
+import { RiskLevel } from '../../types'
 
 const labelMap: Record<RiskLevel, string> = {
   LOW: 'Low',
@@ -8,7 +8,7 @@ const labelMap: Record<RiskLevel, string> = {
 }
 
 export function RiskLevelBadge({ level }: { level: RiskLevel }) {
-  const strong = level === 'HIGH' || level === 'CRITICAL'
+  const strong = level === RiskLevel.HIGH || level === RiskLevel.CRITICAL
 
   return (
     <span

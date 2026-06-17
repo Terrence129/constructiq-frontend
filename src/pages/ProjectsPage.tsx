@@ -2,12 +2,30 @@ import { ProjectStatusBadge } from '../components/project/ProjectStatusBadge'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import type { ProjectStatus } from '../types'
+import { ProjectStatus } from '../types'
 
 const projects: Array<[string, string, ProjectStatus, string, string]> = [
-  ['Harbour Tower Phase 1', 'Singapore', 'ACTIVE', 'ConstructIQ Client', '2027-12-31'],
-  ['East Utility Tunnel', 'Shanghai', 'PLANNING', 'Municipal Works Authority', '2026-11-30'],
-  ['Urban Renewal Section B', 'Shenzhen', 'ON_HOLD', 'City Investment Group', '2027-03-15'],
+  [
+    'Harbour Tower Phase 1',
+    'Singapore',
+    ProjectStatus.ACTIVE,
+    'ConstructIQ Client',
+    '2027-12-31',
+  ],
+  [
+    'East Utility Tunnel',
+    'Shanghai',
+    ProjectStatus.PLANNING,
+    'Municipal Works Authority',
+    '2026-11-30',
+  ],
+  [
+    'Urban Renewal Section B',
+    'Shenzhen',
+    ProjectStatus.ON_HOLD,
+    'City Investment Group',
+    '2027-03-15',
+  ],
 ]
 
 export function ProjectsPage() {

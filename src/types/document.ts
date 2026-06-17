@@ -6,6 +6,8 @@ export interface DocumentRecord {
   fileUrl: string
   fileType: string
   fileSize: number
+  uploadedById: number
   uploadedByName: string
   createdAt: string
+  updatedAt: string | null
 }
