@@ -1,6 +1,7 @@
 import axios from 'axios'
 
 export const AUTH_TOKEN_STORAGE_KEY = 'constructiq_token'
+export const AUTH_USER_STORAGE_KEY = 'constructiq_user'
 
 export const apiClient = axios.create({
   baseURL: 'http://localhost:8080',
@@ -24,6 +25,7 @@ apiClient.interceptors.response.use(
   (error) => {
     if (error.response?.status === 401) {
       localStorage.removeItem(AUTH_TOKEN_STORAGE_KEY)
+      localStorage.removeItem(AUTH_USER_STORAGE_KEY)
 
       if (window.location.pathname !== '/login') {
         window.location.assign('/login')

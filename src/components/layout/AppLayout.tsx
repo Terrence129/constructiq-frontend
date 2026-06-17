@@ -1,4 +1,5 @@
-import { NavLink, Outlet } from 'react-router-dom'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { useAuth } from '../../hooks/useAuth'
 
 const navItems = [
   { to: '/dashboard', label: 'Executive Dashboard' },
@@ -11,6 +12,14 @@ const navItems = [
 ]
 
 export function AppLayout() {
+  const navigate = useNavigate()
+  const { logout, user } = useAuth()
+
+  function handleLogout() {
+    logout()
+    navigate('/login', { replace: true })
+  }
+
   return (
     <div className="min-h-screen bg-gray-100">
       <header className="fixed inset-x-0 top-0 z-20 h-14 border-b border-blue-950 bg-ci-blue-950 text-white shadow">
@@ -30,7 +39,14 @@ export function AppLayout() {
           </div>
           <div className="hidden items-center gap-4 text-xs text-blue-100 md:flex">
             <span>Environment: Development</span>
-            <span>Current User: System Administrator</span>
+            <span>Current User: {user?.name ?? 'Authenticated User'}</span>
+            <button
+              className="border border-blue-200 px-3 py-1 text-xs font-medium text-white hover:bg-ci-blue-800"
+              onClick={handleLogout}
+              type="button"
+            >
+              Logout
+            </button>
           </div>
         </div>
       </header>
