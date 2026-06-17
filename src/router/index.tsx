@@ -1,5 +1,6 @@
 import { createBrowserRouter, Navigate } from 'react-router-dom'
 import { AppLayout } from '../components/layout/AppLayout'
+import { ProtectedRoute } from '../components/layout/ProtectedRoute'
 import { AiAnalysisPage } from '../pages/AiAnalysisPage'
 import { DashboardPage } from '../pages/DashboardPage'
 import { DocumentsPage } from '../pages/DocumentsPage'
@@ -14,7 +15,11 @@ import { TasksPage } from '../pages/TasksPage'
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <AppLayout />,
+    element: (
+      <ProtectedRoute>
+        <AppLayout />
+      </ProtectedRoute>
+    ),
     children: [
       { index: true, element: <Navigate replace to="/dashboard" /> },
       { path: 'dashboard', element: <DashboardPage /> },
