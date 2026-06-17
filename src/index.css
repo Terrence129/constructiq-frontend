@@ -1,0 +1,33 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ci-blue-950: #08204a;
+  --color-ci-blue-900: #0b2f6b;
+  --color-ci-blue-800: #123f82;
+  --color-ci-red-700: #b91c1c;
+  --color-ci-gold-500: #c9972b;
+}
+
+@layer base {
+  html {
+    background: #f3f4f6;
+  }
+
+  body {
+    margin: 0;
+    min-width: 320px;
+    color: #111827;
+    font-family:
+      "Microsoft YaHei", "PingFang SC", "Noto Sans SC", "Segoe UI", Arial,
+      sans-serif;
+    font-size: 14px;
+    letter-spacing: 0;
+  }
+
+  button,
+  input,
+  select,
+  textarea {
+    font: inherit;
+  }
+}
