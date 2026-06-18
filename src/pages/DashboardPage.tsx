@@ -1,6 +1,10 @@
 import axios from 'axios'
-import { useQuery } from '@tanstack/react-query'
-import { getDashboardStatistics } from '../api/dashboardApi'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  createDashboardStatisticsSnapshot,
+  getDashboardStatistics,
+  getLatestDashboardStatisticsSnapshot,
+} from '../api/dashboardApi'
 import { MetricCard } from '../components/ui/MetricCard'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
@@ -64,6 +68,7 @@ const cardDetails: Partial<Record<keyof DashboardStatistics, string>> = {
 
 export function DashboardPage() {
   useDocumentTitle('Executive Dashboard')
+  const queryClient = useQueryClient()
 
   const {
     data: statistics,
@@ -73,6 +78,27 @@ export function DashboardPage() {
   } = useQuery({
     queryKey: ['dashboard', 'statistics'],
     queryFn: getDashboardStatistics,
+  })
+
+  const {
+    data: latestSnapshot,
+    error: latestSnapshotError,
+    isError: isLatestSnapshotError,
+    isFetching: isLatestSnapshotFetching,
+  } = useQuery({
+    queryKey: ['dashboard', 'statistics', 'snapshots', 'latest'],
+    queryFn: getLatestDashboardStatisticsSnapshot,
+    retry: false,
+  })
+
+  const createSnapshotMutation = useMutation({
+    mutationFn: createDashboardStatisticsSnapshot,
+    onSuccess: (snapshot) => {
+      queryClient.setQueryData(
+        ['dashboard', 'statistics', 'snapshots', 'latest'],
+        snapshot,
+      )
+    },
   })
 
   return (
@@ -85,15 +111,40 @@ export function DashboardPage() {
       <div className="space-y-5 p-5">
         {isLoading ? <DashboardLoadingState /> : null}
         {isError ? <DashboardErrorState error={error} /> : null}
-        {statistics ? <DashboardStatisticsView statistics={statistics} /> : null}
+        {statistics ? (
+          <DashboardStatisticsView
+            createSnapshotError={createSnapshotMutation.error}
+            isCreatingSnapshot={createSnapshotMutation.isPending}
+            isLatestSnapshotError={isLatestSnapshotError}
+            isLatestSnapshotFetching={isLatestSnapshotFetching}
+            latestSnapshot={latestSnapshot}
+            latestSnapshotError={latestSnapshotError}
+            onCreateSnapshot={() => createSnapshotMutation.mutate()}
+            statistics={statistics}
+          />
+        ) : null}
       </div>
     </>
   )
 }
 
 function DashboardStatisticsView({
+  createSnapshotError,
+  isCreatingSnapshot,
+  isLatestSnapshotError,
+  isLatestSnapshotFetching,
+  latestSnapshot,
+  latestSnapshotError,
+  onCreateSnapshot,
   statistics,
 }: {
+  createSnapshotError: unknown
+  isCreatingSnapshot: boolean
+  isLatestSnapshotError: boolean
+  isLatestSnapshotFetching: boolean
+  latestSnapshot: DashboardStatistics | undefined
+  latestSnapshotError: unknown
+  onCreateSnapshot: () => void
   statistics: DashboardStatistics
 }) {
   return (
@@ -142,26 +193,127 @@ function DashboardStatisticsView({
           </div>
         </SectionCard>
 
-        <SectionCard title="Snapshot Context">
-          <dl className="space-y-3 p-4 text-sm">
-            <div className="border-l-4 border-ci-blue-800 bg-blue-50 px-3 py-2">
-              <dt className="font-semibold text-gray-900">User</dt>
-              <dd className="text-gray-600">{statistics.userName}</dd>
-            </div>
-            <div className="border-l-4 border-ci-gold-500 bg-yellow-50 px-3 py-2">
-              <dt className="font-semibold text-gray-900">Generated At</dt>
-              <dd className="text-gray-600">{statistics.generatedAt}</dd>
-            </div>
-            <div className="border-l-4 border-ci-blue-800 bg-blue-50 px-3 py-2">
-              <dt className="font-semibold text-gray-900">Snapshot ID</dt>
-              <dd className="text-gray-600">
-                {statistics.snapshotId ?? 'Live statistics'}
-              </dd>
-            </div>
-          </dl>
-        </SectionCard>
+        <SnapshotControls
+          createSnapshotError={createSnapshotError}
+          isCreatingSnapshot={isCreatingSnapshot}
+          isLatestSnapshotError={isLatestSnapshotError}
+          isLatestSnapshotFetching={isLatestSnapshotFetching}
+          latestSnapshot={latestSnapshot}
+          latestSnapshotError={latestSnapshotError}
+          liveStatistics={statistics}
+          onCreateSnapshot={onCreateSnapshot}
+        />
       </div>
     </>
+  )
+}
+
+function SnapshotControls({
+  createSnapshotError,
+  isCreatingSnapshot,
+  isLatestSnapshotError,
+  isLatestSnapshotFetching,
+  latestSnapshot,
+  latestSnapshotError,
+  liveStatistics,
+  onCreateSnapshot,
+}: {
+  createSnapshotError: unknown
+  isCreatingSnapshot: boolean
+  isLatestSnapshotError: boolean
+  isLatestSnapshotFetching: boolean
+  latestSnapshot: DashboardStatistics | undefined
+  latestSnapshotError: unknown
+  liveStatistics: DashboardStatistics
+  onCreateSnapshot: () => void
+}) {
+  const latestSnapshotNotFound =
+    axios.isAxiosError<ErrorResponse>(latestSnapshotError) &&
+    latestSnapshotError.response?.status === 404
+
+  return (
+    <SectionCard
+      title="Statistics Snapshots"
+      toolbar={
+        <button
+          className="h-8 bg-ci-blue-800 px-3 text-xs font-semibold text-white hover:bg-ci-blue-900 disabled:cursor-not-allowed disabled:bg-gray-400"
+          disabled={isCreatingSnapshot}
+          onClick={onCreateSnapshot}
+          type="button"
+        >
+          {isCreatingSnapshot ? 'Saving...' : 'Save Current Snapshot'}
+        </button>
+      }
+    >
+      <div className="space-y-4 p-4">
+        {createSnapshotError ? (
+          <div className="border border-red-200 bg-red-50 px-3 py-2 text-sm text-ci-red-700">
+            {getErrorMessage(createSnapshotError)}
+          </div>
+        ) : null}
+
+        <dl className="space-y-3 text-sm">
+          <div className="border-l-4 border-ci-blue-800 bg-blue-50 px-3 py-2">
+            <dt className="font-semibold text-gray-900">Live User</dt>
+            <dd className="text-gray-600">{liveStatistics.userName}</dd>
+          </div>
+          <div className="border-l-4 border-ci-gold-500 bg-yellow-50 px-3 py-2">
+            <dt className="font-semibold text-gray-900">Live Generated At</dt>
+            <dd className="text-gray-600">{liveStatistics.generatedAt}</dd>
+          </div>
+        </dl>
+
+        <div className="border-t border-gray-200 pt-4">
+          <div className="mb-3 text-sm font-semibold text-gray-900">
+            Latest Saved Snapshot
+          </div>
+          {isLatestSnapshotFetching ? (
+            <div className="text-sm text-gray-500">Loading latest snapshot...</div>
+          ) : null}
+          {isLatestSnapshotError && latestSnapshotNotFound ? (
+            <div className="border border-gray-200 bg-gray-50 px-3 py-2 text-sm text-gray-600">
+              No saved dashboard snapshot exists yet.
+            </div>
+          ) : null}
+          {isLatestSnapshotError && !latestSnapshotNotFound ? (
+            <div className="border border-red-200 bg-red-50 px-3 py-2 text-sm text-ci-red-700">
+              {getErrorMessage(latestSnapshotError)}
+            </div>
+          ) : null}
+          {latestSnapshot ? (
+            <dl className="grid gap-3 text-sm sm:grid-cols-2">
+              <SnapshotField
+                label="Snapshot ID"
+                value={latestSnapshot.snapshotId ?? 'Live statistics'}
+              />
+              <SnapshotField label="Generated At" value={latestSnapshot.generatedAt} />
+              <SnapshotField label="Total Projects" value={latestSnapshot.totalProjects} />
+              <SnapshotField label="Overdue Tasks" value={latestSnapshot.overdueTasks} />
+              <SnapshotField label="High Risks" value={latestSnapshot.highRisks} />
+              <SnapshotField
+                label="Critical Risks"
+                value={latestSnapshot.criticalRisks}
+              />
+            </dl>
+          ) : null}
+        </div>
+      </div>
+    </SectionCard>
+  )
+}
+
+function SnapshotField({
+  label,
+  value,
+}: {
+  label: string
+  value: number | string
+}) {
+  return (
+    <div className="border border-gray-200 bg-white px-3 py-2">
+      <dt className="text-xs font-medium text-gray-500">{label}</dt>
+      <dd className="mt-1 font-semibold text-gray-900">{value}</dd>
+    </div>
   )
 }
 
