@@ -9,12 +9,21 @@ import {
   updateProject,
 } from '../api/projectApi'
 import {
+  createRisk,
+  deleteRisk,
+  getRisksByProject,
+  updateRisk,
+} from '../api/riskApi'
+import {
   createTask,
   deleteTask,
   getTasksByProject,
   updateTask,
 } from '../api/taskApi'
 import { ProjectStatusBadge } from '../components/project/ProjectStatusBadge'
+import { RiskFormModal } from '../components/risk/RiskFormModal'
+import { RiskMatrix } from '../components/risk/RiskMatrix'
+import { RiskTable } from '../components/risk/RiskTable'
 import { TaskFormModal } from '../components/task/TaskFormModal'
 import { TaskTable } from '../components/task/TaskTable'
 import { PageHeader } from '../components/ui/PageHeader'
@@ -23,6 +32,8 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import type {
   ErrorResponse,
   Project,
+  Risk,
+  RiskRequest,
   Task,
   TaskRequest,
   UpdateProjectRequest,
@@ -166,6 +177,8 @@ export function ProjectDetailPage() {
               <ProjectOverview project={project} />
             ) : activeTab === 'tasks' ? (
               <TaskManagementPanel projectId={parsedProjectId} />
+            ) : activeTab === 'risks' ? (
+              <RiskManagementPanel projectId={parsedProjectId} />
             ) : (
               <PlaceholderTab
                 label={tabs.find((tab) => tab.key === activeTab)?.label ?? 'Module'}
@@ -185,6 +198,149 @@ export function ProjectDetailPage() {
         />
       ) : null}
     </>
+  )
+}
+
+function RiskManagementPanel({ projectId }: { projectId: number }) {
+  const queryClient = useQueryClient()
+  const [isRiskModalOpen, setIsRiskModalOpen] = useState(false)
+  const [editingRisk, setEditingRisk] = useState<Risk | null>(null)
+  const [deletingRiskId, setDeletingRiskId] = useState<number | null>(null)
+
+  const riskQueryKey = ['projects', projectId, 'risks']
+
+  const {
+    data: risks = [],
+    error,
+    isError,
+    isLoading,
+  } = useQuery({
+    queryKey: riskQueryKey,
+    queryFn: () => getRisksByProject(projectId),
+  })
+
+  const createRiskMutation = useMutation({
+    mutationFn: (request: RiskRequest) => createRisk(projectId, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: riskQueryKey })
+      closeRiskModal()
+    },
+  })
+
+  const updateRiskMutation = useMutation({
+    mutationFn: ({ request, riskId }: { request: RiskRequest; riskId: number }) =>
+      updateRisk(riskId, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: riskQueryKey })
+      closeRiskModal()
+    },
+  })
+
+  const deleteRiskMutation = useMutation({
+    mutationFn: deleteRisk,
+    onMutate: (riskId) => setDeletingRiskId(riskId),
+    onSettled: () => setDeletingRiskId(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: riskQueryKey })
+    },
+  })
+
+  function openCreateModal() {
+    setEditingRisk(null)
+    setIsRiskModalOpen(true)
+  }
+
+  function openEditModal(risk: Risk) {
+    setEditingRisk(risk)
+    setIsRiskModalOpen(true)
+  }
+
+  function closeRiskModal() {
+    setIsRiskModalOpen(false)
+    setEditingRisk(null)
+    createRiskMutation.reset()
+    updateRiskMutation.reset()
+  }
+
+  function handleSubmitRisk(request: RiskRequest) {
+    if (editingRisk) {
+      updateRiskMutation.mutate({ request, riskId: editingRisk.id })
+      return
+    }
+
+    createRiskMutation.mutate(request)
+  }
+
+  function handleDeleteRisk(risk: Risk) {
+    const confirmed = window.confirm(
+      `Delete risk "${risk.title}"? This action cannot be undone.`,
+    )
+
+    if (confirmed) {
+      deleteRiskMutation.mutate(risk.id)
+    }
+  }
+
+  const modalError = editingRisk
+    ? updateRiskMutation.error
+    : createRiskMutation.error
+
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Risk Register"
+        toolbar={
+          <button
+            className="h-8 bg-ci-blue-800 px-3 text-xs font-semibold text-white hover:bg-ci-blue-900"
+            onClick={openCreateModal}
+            type="button"
+          >
+            New Risk
+          </button>
+        }
+      >
+        {isLoading ? <RiskLoadingState /> : null}
+        {isError ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            <div className="font-semibold">Unable to load risks.</div>
+            <div className="mt-1">{getRiskErrorMessage(error)}</div>
+          </div>
+        ) : null}
+        {deleteRiskMutation.error ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            {getRiskErrorMessage(deleteRiskMutation.error)}
+          </div>
+        ) : null}
+        {!isLoading && !isError ? (
+          <RiskTable
+            deletingRiskId={deletingRiskId}
+            onDelete={handleDeleteRisk}
+            onEdit={openEditModal}
+            risks={risks}
+          />
+        ) : null}
+      </SectionCard>
+
+      {!isLoading && !isError ? (
+        <SectionCard title="Risk Matrix">
+          <RiskMatrix risks={risks} />
+        </SectionCard>
+      ) : null}
+
+      {isRiskModalOpen ? (
+        <RiskFormModal
+          errorMessage={modalError ? getRiskErrorMessage(modalError) : null}
+          isSubmitting={
+            editingRisk
+              ? updateRiskMutation.isPending
+              : createRiskMutation.isPending
+          }
+          onClose={closeRiskModal}
+          onSubmit={handleSubmitRisk}
+          risk={editingRisk ?? undefined}
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -567,6 +723,16 @@ function TaskLoadingState() {
   )
 }
 
+function RiskLoadingState() {
+  return (
+    <div className="space-y-2 p-4">
+      {Array.from({ length: 5 }, (_, index) => (
+        <div className="h-10 animate-pulse bg-gray-100" key={index} />
+      ))}
+    </div>
+  )
+}
+
 function DetailErrorState({ message }: { message: string }) {
   return (
     <div className="border border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
@@ -623,6 +789,22 @@ function getTaskErrorMessage(error: unknown): string {
   if (axios.isAxiosError<ErrorResponse>(error)) {
     if (error.response?.status === 403) {
       return 'You do not have permission to manage tasks for this project. Only the project creator or a MANAGER can create, update, or delete tasks.'
+    }
+
+    return error.response?.data.message ?? error.message
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return 'Please verify the backend service is running and try again.'
+}
+
+function getRiskErrorMessage(error: unknown): string {
+  if (axios.isAxiosError<ErrorResponse>(error)) {
+    if (error.response?.status === 403) {
+      return 'You do not have permission to manage risks for this project. Only the project creator or a MANAGER can create, update, or delete risks.'
     }
 
     return error.response?.data.message ?? error.message
