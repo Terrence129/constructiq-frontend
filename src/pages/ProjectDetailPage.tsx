@@ -1,5 +1,6 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
 import axios from 'axios'
+import dayjs from 'dayjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -185,8 +186,10 @@ function ProjectOverview({ project }: { project: Project }) {
         <OverviewField label="Start Date" value={project.startDate} />
         <OverviewField label="End Date" value={project.endDate} />
         <OverviewField label="Created By" value={project.createdByName} />
-        <OverviewField label="Created At" value={project.createdAt} />
-        <OverviewField label="Updated At" value={project.updatedAt} />
+        <OverviewField label="Created At" value={dayjs(project.createdAt)
+            .format("YYYY-MM-DD HH:mm")} />
+        <OverviewField label="Updated At" value={dayjs(project.updatedAt)
+            .format("YYYY-MM-DD HH:mm")} />
       </div>
       <div className="border-t border-gray-200 p-4">
         <div className="mb-1 text-sm font-semibold text-gray-900">
