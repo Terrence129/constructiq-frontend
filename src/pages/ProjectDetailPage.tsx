@@ -173,6 +173,8 @@ export function ProjectDetailPage() {
 }
 
 function ProjectOverview({ project }: { project: Project }) {
+  console.log(project)
+  const updateAt = project.updatedAt
   return (
     <SectionCard title="Project Overview">
       <div className="grid gap-4 p-4 text-sm md:grid-cols-3">
@@ -188,8 +190,7 @@ function ProjectOverview({ project }: { project: Project }) {
         <OverviewField label="Created By" value={project.createdByName} />
         <OverviewField label="Created At" value={dayjs(project.createdAt)
             .format("YYYY-MM-DD HH:mm")} />
-        <OverviewField label="Updated At" value={dayjs(project.updatedAt)
-            .format("YYYY-MM-DD HH:mm")} />
+        <OverviewField label="Updated At" value={updateAt !== "Invalid Date" ? updateAt : "-" }/>
       </div>
       <div className="border-t border-gray-200 p-4">
         <div className="mb-1 text-sm font-semibold text-gray-900">
