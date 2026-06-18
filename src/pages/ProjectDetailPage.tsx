@@ -9,6 +9,13 @@ import {
   updateProject,
 } from '../api/projectApi'
 import {
+  createReport,
+  deleteReport,
+  getReportById,
+  getReportsByProject,
+  updateReport,
+} from '../api/reportApi'
+import {
   createRisk,
   deleteRisk,
   getRisksByProject,
@@ -24,18 +31,24 @@ import { ProjectStatusBadge } from '../components/project/ProjectStatusBadge'
 import { RiskFormModal } from '../components/risk/RiskFormModal'
 import { RiskMatrix } from '../components/risk/RiskMatrix'
 import { RiskTable } from '../components/risk/RiskTable'
+import { ReportDetailCard } from '../components/report/ReportDetailCard'
+import { ReportFormModal } from '../components/report/ReportFormModal'
+import { ReportList } from '../components/report/ReportList'
 import { TaskFormModal } from '../components/task/TaskFormModal'
 import { TaskTable } from '../components/task/TaskTable'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import type {
+  CreateProgressReportRequest,
   ErrorResponse,
   Project,
+  ProgressReport,
   Risk,
   RiskRequest,
   Task,
   TaskRequest,
+  UpdateProgressReportRequest,
   UpdateProjectRequest,
 } from '../types'
 import { ProjectStatus } from '../types'
@@ -179,6 +192,8 @@ export function ProjectDetailPage() {
               <TaskManagementPanel projectId={parsedProjectId} />
             ) : activeTab === 'risks' ? (
               <RiskManagementPanel projectId={parsedProjectId} />
+            ) : activeTab === 'progressReports' ? (
+              <ReportManagementPanel projectId={parsedProjectId} />
             ) : (
               <PlaceholderTab
                 label={tabs.find((tab) => tab.key === activeTab)?.label ?? 'Module'}
@@ -198,6 +213,182 @@ export function ProjectDetailPage() {
         />
       ) : null}
     </>
+  )
+}
+
+function ReportManagementPanel({ projectId }: { projectId: number }) {
+  const queryClient = useQueryClient()
+  const [isReportModalOpen, setIsReportModalOpen] = useState(false)
+  const [editingReport, setEditingReport] = useState<ProgressReport | null>(null)
+  const [selectedReportId, setSelectedReportId] = useState<number | null>(null)
+  const [deletingReportId, setDeletingReportId] = useState<number | null>(null)
+
+  const reportListQueryKey = ['projects', projectId, 'progressReports']
+
+  const {
+    data: reports = [],
+    error,
+    isError,
+    isLoading,
+  } = useQuery({
+    queryKey: reportListQueryKey,
+    queryFn: () => getReportsByProject(projectId),
+  })
+
+  const sortedReports = [...reports].sort((a, b) =>
+    b.reportDate.localeCompare(a.reportDate),
+  )
+
+  const {
+    data: selectedReport,
+    error: selectedReportError,
+    isError: isSelectedReportError,
+    isFetching: isSelectedReportFetching,
+  } = useQuery({
+    enabled: selectedReportId !== null,
+    queryKey: ['progressReports', selectedReportId],
+    queryFn: () => getReportById(selectedReportId as number),
+  })
+
+  const createReportMutation = useMutation({
+    mutationFn: (request: CreateProgressReportRequest) =>
+      createReport(projectId, request),
+    onSuccess: (report) => {
+      queryClient.invalidateQueries({ queryKey: reportListQueryKey })
+      queryClient.setQueryData(['progressReports', report.id], report)
+      setSelectedReportId(report.id)
+      closeReportModal()
+    },
+  })
+
+  const updateReportMutation = useMutation({
+    mutationFn: ({
+      reportId,
+      request,
+    }: {
+      reportId: number
+      request: UpdateProgressReportRequest
+    }) => updateReport(reportId, request),
+    onSuccess: (report) => {
+      queryClient.invalidateQueries({ queryKey: reportListQueryKey })
+      queryClient.setQueryData(['progressReports', report.id], report)
+      setSelectedReportId(report.id)
+      closeReportModal()
+    },
+  })
+
+  const deleteReportMutation = useMutation({
+    mutationFn: deleteReport,
+    onMutate: (reportId) => setDeletingReportId(reportId),
+    onSettled: () => setDeletingReportId(null),
+    onSuccess: (_data, reportId) => {
+      queryClient.invalidateQueries({ queryKey: reportListQueryKey })
+      queryClient.removeQueries({ queryKey: ['progressReports', reportId] })
+
+      if (selectedReportId === reportId) {
+        setSelectedReportId(null)
+      }
+    },
+  })
+
+  function openCreateModal() {
+    setEditingReport(null)
+    setIsReportModalOpen(true)
+  }
+
+  function openEditModal(report: ProgressReport) {
+    setEditingReport(report)
+    setIsReportModalOpen(true)
+  }
+
+  function closeReportModal() {
+    setIsReportModalOpen(false)
+    setEditingReport(null)
+    createReportMutation.reset()
+    updateReportMutation.reset()
+  }
+
+  function handleSubmitReport(request: CreateProgressReportRequest) {
+    if (editingReport) {
+      updateReportMutation.mutate({ reportId: editingReport.id, request })
+      return
+    }
+
+    createReportMutation.mutate(request)
+  }
+
+  function handleDeleteReport(report: ProgressReport) {
+    const confirmed = window.confirm(
+      `Delete progress report "${report.summary}"? This action cannot be undone.`,
+    )
+
+    if (confirmed) {
+      deleteReportMutation.mutate(report.id)
+    }
+  }
+
+  const modalError = editingReport
+    ? updateReportMutation.error
+    : createReportMutation.error
+
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Progress Reports"
+        toolbar={
+          <button
+            className="h-8 bg-ci-blue-800 px-3 text-xs font-semibold text-white hover:bg-ci-blue-900"
+            onClick={openCreateModal}
+            type="button"
+          >
+            New Report
+          </button>
+        }
+      >
+        {isLoading ? <ReportLoadingState /> : null}
+        {isError ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            <div className="font-semibold">Unable to load progress reports.</div>
+            <div className="mt-1">{getReportErrorMessage(error)}</div>
+          </div>
+        ) : null}
+        {deleteReportMutation.error ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            {getReportErrorMessage(deleteReportMutation.error)}
+          </div>
+        ) : null}
+        {!isLoading && !isError ? (
+          <ReportList
+            deletingReportId={deletingReportId}
+            onDelete={handleDeleteReport}
+            onEdit={openEditModal}
+            onSelect={(report) => setSelectedReportId(report.id)}
+            reports={sortedReports}
+            selectedReportId={selectedReportId}
+          />
+        ) : null}
+      </SectionCard>
+
+      {isSelectedReportFetching ? <ReportDetailLoadingState /> : null}
+      {isSelectedReportError ? (
+        <DetailErrorState message={getReportErrorMessage(selectedReportError)} />
+      ) : null}
+      {selectedReport ? <ReportDetailCard report={selectedReport} /> : null}
+
+      {isReportModalOpen ? (
+        <ReportFormModal
+          errorMessage={modalError ? getReportErrorMessage(modalError) : null}
+          isSubmitting={
+            editingReport
+              ? updateReportMutation.isPending
+              : createReportMutation.isPending
+          }
+          onClose={closeReportModal}
+          onSubmit={handleSubmitReport}
+          report={editingReport ?? undefined}
+        />
+      ) : null}
+    </div>
   )
 }
 
@@ -733,6 +924,30 @@ function RiskLoadingState() {
   )
 }
 
+function ReportLoadingState() {
+  return (
+    <div className="space-y-2 p-4">
+      {Array.from({ length: 5 }, (_, index) => (
+        <div className="h-10 animate-pulse bg-gray-100" key={index} />
+      ))}
+    </div>
+  )
+}
+
+function ReportDetailLoadingState() {
+  return (
+    <div className="space-y-3 border border-gray-200 bg-white p-4">
+      <div className="h-4 w-40 animate-pulse bg-gray-100" />
+      <div className="grid gap-4 md:grid-cols-3">
+        {Array.from({ length: 3 }, (_, index) => (
+          <div className="h-16 animate-pulse bg-gray-100" key={index} />
+        ))}
+      </div>
+      <div className="h-32 animate-pulse bg-gray-100" />
+    </div>
+  )
+}
+
 function DetailErrorState({ message }: { message: string }) {
   return (
     <div className="border border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
@@ -805,6 +1020,22 @@ function getRiskErrorMessage(error: unknown): string {
   if (axios.isAxiosError<ErrorResponse>(error)) {
     if (error.response?.status === 403) {
       return 'You do not have permission to manage risks for this project. Only the project creator or a MANAGER can create, update, or delete risks.'
+    }
+
+    return error.response?.data.message ?? error.message
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return 'Please verify the backend service is running and try again.'
+}
+
+function getReportErrorMessage(error: unknown): string {
+  if (axios.isAxiosError<ErrorResponse>(error)) {
+    if (error.response?.status === 403) {
+      return 'You do not have permission to manage progress reports for this project. Only the project creator or a MANAGER can create, update, or delete reports.'
     }
 
     return error.response?.data.message ?? error.message
