@@ -8,11 +8,25 @@ import {
   getProjectById,
   updateProject,
 } from '../api/projectApi'
+import {
+  createTask,
+  deleteTask,
+  getTasksByProject,
+  updateTask,
+} from '../api/taskApi'
 import { ProjectStatusBadge } from '../components/project/ProjectStatusBadge'
+import { TaskFormModal } from '../components/task/TaskFormModal'
+import { TaskTable } from '../components/task/TaskTable'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import type { ErrorResponse, Project, UpdateProjectRequest } from '../types'
+import type {
+  ErrorResponse,
+  Project,
+  Task,
+  TaskRequest,
+  UpdateProjectRequest,
+} from '../types'
 import { ProjectStatus } from '../types'
 
 const tabs = [
@@ -150,6 +164,8 @@ export function ProjectDetailPage() {
 
             {activeTab === 'overview' ? (
               <ProjectOverview project={project} />
+            ) : activeTab === 'tasks' ? (
+              <TaskManagementPanel projectId={parsedProjectId} />
             ) : (
               <PlaceholderTab
                 label={tabs.find((tab) => tab.key === activeTab)?.label ?? 'Module'}
@@ -173,7 +189,6 @@ export function ProjectDetailPage() {
 }
 
 function ProjectOverview({ project }: { project: Project }) {
-  console.log(project)
   const updateAt = project.updatedAt
   return (
     <SectionCard title="Project Overview">
@@ -201,6 +216,143 @@ function ProjectOverview({ project }: { project: Project }) {
         </p>
       </div>
     </SectionCard>
+  )
+}
+
+function TaskManagementPanel({ projectId }: { projectId: number }) {
+  const queryClient = useQueryClient()
+  const [isTaskModalOpen, setIsTaskModalOpen] = useState(false)
+  const [editingTask, setEditingTask] = useState<Task | null>(null)
+  const [deletingTaskId, setDeletingTaskId] = useState<number | null>(null)
+
+  const taskQueryKey = ['projects', projectId, 'tasks']
+
+  const {
+    data: tasks = [],
+    error,
+    isError,
+    isLoading,
+  } = useQuery({
+    queryKey: taskQueryKey,
+    queryFn: () => getTasksByProject(projectId),
+  })
+
+  const createTaskMutation = useMutation({
+    mutationFn: (request: TaskRequest) => createTask(projectId, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskQueryKey })
+      closeTaskModal()
+    },
+  })
+
+  const updateTaskMutation = useMutation({
+    mutationFn: ({ request, taskId }: { request: TaskRequest; taskId: number }) =>
+      updateTask(taskId, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskQueryKey })
+      closeTaskModal()
+    },
+  })
+
+  const deleteTaskMutation = useMutation({
+    mutationFn: deleteTask,
+    onMutate: (taskId) => setDeletingTaskId(taskId),
+    onSettled: () => setDeletingTaskId(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: taskQueryKey })
+    },
+  })
+
+  function openCreateModal() {
+    setEditingTask(null)
+    setIsTaskModalOpen(true)
+  }
+
+  function openEditModal(task: Task) {
+    setEditingTask(task)
+    setIsTaskModalOpen(true)
+  }
+
+  function closeTaskModal() {
+    setIsTaskModalOpen(false)
+    setEditingTask(null)
+    createTaskMutation.reset()
+    updateTaskMutation.reset()
+  }
+
+  function handleSubmitTask(request: TaskRequest) {
+    if (editingTask) {
+      updateTaskMutation.mutate({ request, taskId: editingTask.id })
+      return
+    }
+
+    createTaskMutation.mutate(request)
+  }
+
+  function handleDeleteTask(task: Task) {
+    const confirmed = window.confirm(
+      `Delete task "${task.title}"? This action cannot be undone.`,
+    )
+
+    if (confirmed) {
+      deleteTaskMutation.mutate(task.id)
+    }
+  }
+
+  const modalError = editingTask
+    ? updateTaskMutation.error
+    : createTaskMutation.error
+
+  return (
+    <>
+      <SectionCard
+        title="Project Tasks"
+        toolbar={
+          <button
+            className="h-8 bg-ci-blue-800 px-3 text-xs font-semibold text-white hover:bg-ci-blue-900"
+            onClick={openCreateModal}
+            type="button"
+          >
+            New Task
+          </button>
+        }
+      >
+        {isLoading ? <TaskLoadingState /> : null}
+        {isError ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            <div className="font-semibold">Unable to load tasks.</div>
+            <div className="mt-1">{getTaskErrorMessage(error)}</div>
+          </div>
+        ) : null}
+        {deleteTaskMutation.error ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            {getTaskErrorMessage(deleteTaskMutation.error)}
+          </div>
+        ) : null}
+        {!isLoading && !isError ? (
+          <TaskTable
+            deletingTaskId={deletingTaskId}
+            onDelete={handleDeleteTask}
+            onEdit={openEditModal}
+            tasks={tasks}
+          />
+        ) : null}
+      </SectionCard>
+
+      {isTaskModalOpen ? (
+        <TaskFormModal
+          errorMessage={modalError ? getTaskErrorMessage(modalError) : null}
+          isSubmitting={
+            editingTask
+              ? updateTaskMutation.isPending
+              : createTaskMutation.isPending
+          }
+          onClose={closeTaskModal}
+          onSubmit={handleSubmitTask}
+          task={editingTask ?? undefined}
+        />
+      ) : null}
+    </>
   )
 }
 
@@ -405,6 +557,16 @@ function DetailLoadingState() {
   )
 }
 
+function TaskLoadingState() {
+  return (
+    <div className="space-y-2 p-4">
+      {Array.from({ length: 5 }, (_, index) => (
+        <div className="h-10 animate-pulse bg-gray-100" key={index} />
+      ))}
+    </div>
+  )
+}
+
 function DetailErrorState({ message }: { message: string }) {
   return (
     <div className="border border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
@@ -445,6 +607,22 @@ function getProjectErrorMessage(error: unknown): string {
   if (axios.isAxiosError<ErrorResponse>(error)) {
     if (error.response?.status === 403) {
       return 'You do not have permission to manage this project.'
+    }
+
+    return error.response?.data.message ?? error.message
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return 'Please verify the backend service is running and try again.'
+}
+
+function getTaskErrorMessage(error: unknown): string {
+  if (axios.isAxiosError<ErrorResponse>(error)) {
+    if (error.response?.status === 403) {
+      return 'You do not have permission to manage tasks for this project. Only the project creator or a MANAGER can create, update, or delete tasks.'
     }
 
     return error.response?.data.message ?? error.message
