@@ -1,8 +1,15 @@
-import { useState, type FormEvent, type ReactNode } from 'react'
+import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import axios from 'axios'
 import dayjs from 'dayjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
+import {
+  deleteDocument,
+  downloadDocument,
+  getDocumentMetadata,
+  getDocumentsByProject,
+  uploadDocument,
+} from '../api/documentApi'
 import {
   deleteProject,
   getProjectById,
@@ -27,6 +34,8 @@ import {
   getTasksByProject,
   updateTask,
 } from '../api/taskApi'
+import { DocumentTable } from '../components/document/DocumentTable'
+import { formatFileSize } from '../components/document/formatFileSize'
 import { ProjectStatusBadge } from '../components/project/ProjectStatusBadge'
 import { RiskFormModal } from '../components/risk/RiskFormModal'
 import { RiskMatrix } from '../components/risk/RiskMatrix'
@@ -41,6 +50,7 @@ import { SectionCard } from '../components/ui/SectionCard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import type {
   CreateProgressReportRequest,
+  DocumentRecord,
   ErrorResponse,
   Project,
   ProgressReport,
@@ -194,6 +204,8 @@ export function ProjectDetailPage() {
               <RiskManagementPanel projectId={parsedProjectId} />
             ) : activeTab === 'progressReports' ? (
               <ReportManagementPanel projectId={parsedProjectId} />
+            ) : activeTab === 'documents' ? (
+              <DocumentManagementPanel projectId={parsedProjectId} />
             ) : (
               <PlaceholderTab
                 label={tabs.find((tab) => tab.key === activeTab)?.label ?? 'Module'}
@@ -213,6 +225,181 @@ export function ProjectDetailPage() {
         />
       ) : null}
     </>
+  )
+}
+
+function DocumentManagementPanel({ projectId }: { projectId: number }) {
+  const queryClient = useQueryClient()
+  const [selectedDocumentId, setSelectedDocumentId] = useState<number | null>(null)
+  const [deletingDocumentId, setDeletingDocumentId] = useState<number | null>(null)
+  const [downloadingDocumentId, setDownloadingDocumentId] = useState<number | null>(
+    null,
+  )
+  const [uploadProgress, setUploadProgress] = useState<number | null>(null)
+  const [downloadError, setDownloadError] = useState<string | null>(null)
+
+  const documentListQueryKey = ['projects', projectId, 'documents']
+
+  const {
+    data: documents = [],
+    error,
+    isError,
+    isLoading,
+  } = useQuery({
+    queryKey: documentListQueryKey,
+    queryFn: () => getDocumentsByProject(projectId),
+  })
+
+  const {
+    data: selectedDocument,
+    error: selectedDocumentError,
+    isError: isSelectedDocumentError,
+    isFetching: isSelectedDocumentFetching,
+  } = useQuery({
+    enabled: selectedDocumentId !== null,
+    queryKey: ['documents', selectedDocumentId],
+    queryFn: () => getDocumentMetadata(selectedDocumentId as number),
+  })
+
+  const uploadDocumentMutation = useMutation({
+    mutationFn: (file: File) =>
+      uploadDocument(projectId, file, (event) => {
+        if (event.total) {
+          setUploadProgress(Math.round((event.loaded / event.total) * 100))
+        }
+      }),
+    onMutate: () => {
+      setUploadProgress(0)
+    },
+    onSuccess: (document) => {
+      queryClient.invalidateQueries({ queryKey: documentListQueryKey })
+      queryClient.setQueryData(['documents', document.id], document)
+      setSelectedDocumentId(document.id)
+    },
+    onSettled: () => {
+      setUploadProgress(null)
+    },
+  })
+
+  const deleteDocumentMutation = useMutation({
+    mutationFn: deleteDocument,
+    onMutate: (documentId) => setDeletingDocumentId(documentId),
+    onSettled: () => setDeletingDocumentId(null),
+    onSuccess: (_data, documentId) => {
+      queryClient.invalidateQueries({ queryKey: documentListQueryKey })
+      queryClient.removeQueries({ queryKey: ['documents', documentId] })
+
+      if (selectedDocumentId === documentId) {
+        setSelectedDocumentId(null)
+      }
+    },
+  })
+
+  async function handleDownloadDocument(document: DocumentRecord) {
+    setDownloadError(null)
+    setDownloadingDocumentId(document.id)
+
+    try {
+      const result = await downloadDocument(document.id)
+      saveBlob(result.blob, result.fileName ?? document.fileName)
+    } catch (downloadFailure) {
+      setDownloadError(getDocumentErrorMessage(downloadFailure))
+    } finally {
+      setDownloadingDocumentId(null)
+    }
+  }
+
+  function handleDeleteDocument(document: DocumentRecord) {
+    const confirmed = window.confirm(
+      `Delete document "${document.fileName}"? This action cannot be undone.`,
+    )
+
+    if (confirmed) {
+      deleteDocumentMutation.mutate(document.id)
+    }
+  }
+
+  function handleUploadChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+
+    if (file) {
+      uploadDocumentMutation.mutate(file)
+    }
+  }
+
+  return (
+    <div className="space-y-4">
+      <SectionCard
+        title="Project Documents"
+        toolbar={
+          <label className="inline-flex h-8 cursor-pointer items-center bg-ci-blue-800 px-3 text-xs font-semibold text-white hover:bg-ci-blue-900">
+            Upload Document
+            <input
+              className="hidden"
+              disabled={uploadDocumentMutation.isPending}
+              type="file"
+              onChange={handleUploadChange}
+            />
+          </label>
+        }
+      >
+        {uploadDocumentMutation.isPending && uploadProgress !== null ? (
+          <div className="border-t border-gray-200 bg-blue-50 p-4">
+            <div className="mb-2 text-sm font-medium text-ci-blue-900">
+              Uploading document: {uploadProgress}%
+            </div>
+            <div className="h-2 bg-white">
+              <div
+                className="h-2 bg-ci-blue-800"
+                style={{ width: `${uploadProgress}%` }}
+              />
+            </div>
+          </div>
+        ) : null}
+        {uploadDocumentMutation.error ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            {getDocumentErrorMessage(uploadDocumentMutation.error)}
+          </div>
+        ) : null}
+        {downloadError ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            {downloadError}
+          </div>
+        ) : null}
+        {isLoading ? <DocumentLoadingState /> : null}
+        {isError ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            <div className="font-semibold">Unable to load documents.</div>
+            <div className="mt-1">{getDocumentErrorMessage(error)}</div>
+          </div>
+        ) : null}
+        {deleteDocumentMutation.error ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            {getDocumentErrorMessage(deleteDocumentMutation.error)}
+          </div>
+        ) : null}
+        {!isLoading && !isError ? (
+          <DocumentTable
+            deletingDocumentId={deletingDocumentId}
+            documents={documents}
+            downloadingDocumentId={downloadingDocumentId}
+            onDelete={handleDeleteDocument}
+            onDownload={handleDownloadDocument}
+            onViewMetadata={(document) => setSelectedDocumentId(document.id)}
+            selectedDocumentId={selectedDocumentId}
+          />
+        ) : null}
+      </SectionCard>
+
+      {isSelectedDocumentFetching ? <DocumentMetadataLoadingState /> : null}
+      {isSelectedDocumentError ? (
+        <DetailErrorState message={getDocumentErrorMessage(selectedDocumentError)} />
+      ) : null}
+      {selectedDocument ? (
+        <DocumentMetadataCard document={selectedDocument} />
+      ) : null}
+    </div>
   )
 }
 
@@ -536,7 +723,7 @@ function RiskManagementPanel({ projectId }: { projectId: number }) {
 }
 
 function ProjectOverview({ project }: { project: Project }) {
-  const updateAt = project.updatedAt
+  const updateAt = dayjs(project.updatedAt).format("YYYY-MM-DD HH:mm")
   return (
     <SectionCard title="Project Overview">
       <div className="grid gap-4 p-4 text-sm md:grid-cols-3">
@@ -948,6 +1135,43 @@ function ReportDetailLoadingState() {
   )
 }
 
+function DocumentLoadingState() {
+  return (
+    <div className="space-y-2 p-4">
+      {Array.from({ length: 5 }, (_, index) => (
+        <div className="h-10 animate-pulse bg-gray-100" key={index} />
+      ))}
+    </div>
+  )
+}
+
+function DocumentMetadataLoadingState() {
+  return (
+    <div className="grid gap-4 border border-gray-200 bg-white p-4 md:grid-cols-3">
+      {Array.from({ length: 6 }, (_, index) => (
+        <div className="h-16 animate-pulse bg-gray-100" key={index} />
+      ))}
+    </div>
+  )
+}
+
+function DocumentMetadataCard({ document }: { document: DocumentRecord }) {
+  return (
+    <SectionCard title="Document Metadata">
+      <div className="grid gap-4 p-4 text-sm md:grid-cols-3">
+        <OverviewField label="File Name" value={document.fileName} />
+        <OverviewField label="File Type" value={document.fileType} />
+        <OverviewField label="File Size" value={formatFileSize(document.fileSize)} />
+        <OverviewField label="Project" value={document.projectName} />
+        <OverviewField label="Uploaded By" value={document.uploadedByName} />
+        <OverviewField label="Created At" value={document.createdAt} />
+        <OverviewField label="Updated At" value={document.updatedAt} />
+        <OverviewField label="Download URL" value={document.fileUrl} />
+      </div>
+    </SectionCard>
+  )
+}
+
 function DetailErrorState({ message }: { message: string }) {
   return (
     <div className="border border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
@@ -1046,4 +1270,31 @@ function getReportErrorMessage(error: unknown): string {
   }
 
   return 'Please verify the backend service is running and try again.'
+}
+
+function getDocumentErrorMessage(error: unknown): string {
+  if (axios.isAxiosError<ErrorResponse>(error)) {
+    if (error.response?.status === 403) {
+      return 'You do not have permission to manage documents for this project. Only the project creator or a MANAGER can upload or delete documents.'
+    }
+
+    return error.response?.data.message ?? error.message
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return 'Please verify the backend service is running and try again.'
+}
+
+function saveBlob(blob: Blob, fileName: string) {
+  const objectUrl = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = objectUrl
+  link.download = fileName
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
+  URL.revokeObjectURL(objectUrl)
 }
