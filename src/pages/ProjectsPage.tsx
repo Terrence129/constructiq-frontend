@@ -4,12 +4,19 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { createProject, getProjects } from '../api/projectApi'
 import { ProjectStatusBadge } from '../components/project/ProjectStatusBadge'
+import { UserSearchSelect } from '../components/project/UserSearchSelect'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { useAuth } from '../hooks/useAuth'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
-import type { CreateProjectRequest, ErrorResponse, Project } from '../types'
-import { ProjectStatus, UserRole } from '../types'
+import type {
+  CreateProjectRequest,
+  ErrorResponse,
+  Project,
+  ProjectMemberRequest,
+  User,
+} from '../types'
+import { ProjectMemberRole, ProjectStatus, UserRole } from '../types'
 
 type StatusFilter = ProjectStatus | 'ALL'
 
@@ -23,6 +30,17 @@ interface ProjectFormState {
   endDate: string
 }
 
+interface ProjectMemberDraft {
+  title: string
+  description: string
+  role: ProjectMemberRole
+}
+
+interface InitialProjectMember extends ProjectMemberRequest {
+  userEmail: string
+  userName: string
+}
+
 const initialFormState: ProjectFormState = {
   name: '',
   description: '',
@@ -31,6 +49,12 @@ const initialFormState: ProjectFormState = {
   status: ProjectStatus.PLANNING,
   startDate: '',
   endDate: '',
+}
+
+const initialMemberDraft: ProjectMemberDraft = {
+  title: '',
+  description: '',
+  role: ProjectMemberRole.MEMBER,
 }
 
 export function ProjectsPage() {
@@ -251,6 +275,10 @@ function CreateProjectModal({
   onSubmit: (request: CreateProjectRequest) => void
 }) {
   const [form, setForm] = useState<ProjectFormState>(initialFormState)
+  const [memberDraft, setMemberDraft] =
+    useState<ProjectMemberDraft>(initialMemberDraft)
+  const [selectedMemberUser, setSelectedMemberUser] = useState<User | null>(null)
+  const [members, setMembers] = useState<InitialProjectMember[]>([])
 
   function updateField<Key extends keyof ProjectFormState>(
     key: Key,
@@ -259,9 +287,40 @@ function CreateProjectModal({
     setForm((current) => ({ ...current, [key]: value }))
   }
 
+  function updateMemberDraft<Key extends keyof ProjectMemberDraft>(
+    key: Key,
+    value: ProjectMemberDraft[Key],
+  ) {
+    setMemberDraft((current) => ({ ...current, [key]: value }))
+  }
+
+  function addInitialMember() {
+    if (!selectedMemberUser) {
+      return
+    }
+
+    setMembers((current) => [
+      ...current,
+      {
+        userId: selectedMemberUser.id,
+        userEmail: selectedMemberUser.email,
+        userName: selectedMemberUser.name,
+        title: optionalString(memberDraft.title),
+        description: optionalString(memberDraft.description),
+        role: memberDraft.role,
+      },
+    ])
+    setMemberDraft(initialMemberDraft)
+    setSelectedMemberUser(null)
+  }
+
+  function removeInitialMember(index: number) {
+    setMembers((current) => current.filter((_member, itemIndex) => itemIndex !== index))
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    onSubmit(toCreateProjectRequest(form))
+    onSubmit(toCreateProjectRequest(form, members))
   }
 
   return (
@@ -356,6 +415,111 @@ function CreateProjectModal({
             />
           </FormField>
 
+          <div className="border border-gray-200">
+            <div className="border-b border-gray-200 bg-gray-50 px-4 py-3 text-sm font-semibold text-gray-900">
+              Initial Project Members
+            </div>
+            <div className="space-y-4 p-4">
+              <UserSearchSelect
+                excludedUserIds={members.map((member) => member.userId)}
+                selectedUser={selectedMemberUser}
+                onSelect={setSelectedMemberUser}
+              />
+
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_110px]">
+                <input
+                  className="h-9 border border-gray-300 px-3 outline-none focus:border-ci-blue-800"
+                  placeholder="Title"
+                  value={memberDraft.title}
+                  onChange={(event) =>
+                    updateMemberDraft('title', event.target.value)
+                  }
+                />
+                <input
+                  className="h-9 border border-gray-300 px-3 outline-none focus:border-ci-blue-800"
+                  placeholder="Description"
+                  value={memberDraft.description}
+                  onChange={(event) =>
+                    updateMemberDraft('description', event.target.value)
+                  }
+                />
+                <select
+                  className="h-9 border border-gray-300 px-3 outline-none focus:border-ci-blue-800"
+                  value={memberDraft.role}
+                  onChange={(event) =>
+                    updateMemberDraft(
+                      'role',
+                      event.target.value as ProjectMemberRole,
+                    )
+                  }
+                >
+                  <option value={ProjectMemberRole.MEMBER}>Member</option>
+                  <option value={ProjectMemberRole.MANAGER}>Manager</option>
+                </select>
+                <button
+                  className="h-9 bg-ci-blue-800 px-3 text-sm font-semibold text-white hover:bg-ci-blue-900"
+                  disabled={!selectedMemberUser}
+                  onClick={addInitialMember}
+                  type="button"
+                >
+                  Add
+                </button>
+              </div>
+
+              {members.length > 0 ? (
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-left text-sm">
+                    <thead className="bg-ci-blue-950 text-xs text-white">
+                      <tr>
+                        {[
+                          'User',
+                          'Email',
+                          'Title',
+                          'Description',
+                          'Role',
+                          'Actions',
+                        ].map((column) => (
+                            <th className="px-4 py-3" key={column}>
+                              {column}
+                            </th>
+                          ))}
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-200">
+                      {members.map((member, index) => (
+                        <tr key={`${member.userId}-${index}`}>
+                          <td className="px-4 py-3">{member.userName}</td>
+                          <td className="px-4 py-3">{member.userEmail}</td>
+                          <td className="px-4 py-3">{member.title ?? '-'}</td>
+                          <td className="px-4 py-3">
+                            {member.description ?? '-'}
+                          </td>
+                          <td className="px-4 py-3">
+                            {formatMemberRole(member.role ?? ProjectMemberRole.MEMBER)}
+                          </td>
+                          <td className="px-4 py-3">
+                            <button
+                              className="font-medium text-ci-red-700"
+                              onClick={() => removeInitialMember(index)}
+                              type="button"
+                            >
+                              Remove
+                            </button>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="text-sm text-gray-500">
+                  Optional. Members can also be managed later from the project
+                  detail page.
+                </div>
+              )}
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 border-t border-gray-200 pt-4">
             <button
               className="h-9 border border-gray-300 px-4 text-sm font-medium text-gray-700 hover:bg-gray-50"
@@ -412,7 +576,10 @@ function ProjectTableError({ error }: { error: unknown }) {
   )
 }
 
-function toCreateProjectRequest(form: ProjectFormState): CreateProjectRequest {
+function toCreateProjectRequest(
+  form: ProjectFormState,
+  members: InitialProjectMember[],
+): CreateProjectRequest {
   return {
     name: form.name.trim(),
     description: optionalString(form.description),
@@ -421,6 +588,15 @@ function toCreateProjectRequest(form: ProjectFormState): CreateProjectRequest {
     status: form.status,
     startDate: optionalString(form.startDate),
     endDate: optionalString(form.endDate),
+    members:
+      members.length > 0
+        ? members.map((member) => ({
+            userId: member.userId,
+            title: member.title,
+            description: member.description,
+            role: member.role,
+          }))
+        : undefined,
   }
 }
 
@@ -435,6 +611,13 @@ function formatNullable(value: string | null): string {
 
 function formatProjectStatus(status: ProjectStatus): string {
   return status
+    .split('_')
+    .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
+    .join(' ')
+}
+
+function formatMemberRole(role: ProjectMemberRole): string {
+  return role
     .split('_')
     .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
     .join(' ')
