@@ -1,6 +1,6 @@
 import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'react'
 import axios from 'axios'
-import dayjs from 'dayjs'
+import {formatDateToMin} from "../utils/dateUtils.ts";
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import {
@@ -840,7 +840,6 @@ function RiskManagementPanel({ projectId }: { projectId: number }) {
 }
 
 function ProjectOverview({ project }: { project: Project }) {
-  const updateAt = dayjs(project.updatedAt).format("YYYY-MM-DD HH:mm")
   return (
     <SectionCard title="Project Overview">
       <div className="grid gap-4 p-4 text-sm md:grid-cols-3">
@@ -854,9 +853,8 @@ function ProjectOverview({ project }: { project: Project }) {
         <OverviewField label="Start Date" value={project.startDate} />
         <OverviewField label="End Date" value={project.endDate} />
         <OverviewField label="Created By" value={project.createdByName} />
-        <OverviewField label="Created At" value={dayjs(project.createdAt)
-            .format("YYYY-MM-DD HH:mm")} />
-        <OverviewField label="Updated At" value={updateAt !== "Invalid Date" ? updateAt : "-" }/>
+        <OverviewField label="Created At" value={formatDateToMin(project.createdAt)} />
+        <OverviewField label="Updated At" value={formatDateToMin(project.updatedAt)} />
       </div>
       <div className="border-t border-gray-200 p-4">
         <div className="mb-1 text-sm font-semibold text-gray-900">
@@ -1291,8 +1289,7 @@ function DocumentMetadataCard({ document }: { document: DocumentRecord }) {
         <OverviewField label="File Size" value={formatFileSize(document.fileSize)} />
         <OverviewField label="Project" value={document.projectName} />
         <OverviewField label="Uploaded By" value={document.uploadedByName} />
-        <OverviewField label="Created At" value={document.createdAt} />
-        <OverviewField label="Updated At" value={document.updatedAt} />
+        <OverviewField label="Created At" value={formatDateToMin(document.createdAt)} />
         <OverviewField label="Download URL" value={document.fileUrl} />
       </div>
     </SectionCard>

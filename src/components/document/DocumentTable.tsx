@@ -1,6 +1,7 @@
 import type { DocumentRecord } from '../../types'
 import { DocumentTypeBadge } from './DocumentTypeBadge'
 import { formatFileSize } from './formatFileSize'
+import {formatDateToMin} from "../../utils/dateUtils.ts";
 
 interface DocumentTableProps {
   deletingDocumentId: number | null
@@ -88,7 +89,7 @@ export function DocumentTable({
                 </span>
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-gray-700">
-                {document.createdAt}
+                {formatDateToMin(document.createdAt)}
               </td>
               <td className="whitespace-nowrap px-4 py-3">
                 <div className="flex gap-2">

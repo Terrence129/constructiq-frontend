@@ -1,22 +1,20 @@
 import type { ProgressReport } from '../../types'
 import { SectionCard } from '../ui/SectionCard'
-import dayjs from "dayjs";
+import {formatDateToMin} from "../../utils/dateUtils.ts";
 
 interface ReportDetailCardProps {
   report: ProgressReport
 }
 
 export function ReportDetailCard({ report }: ReportDetailCardProps) {
-    const updatedAt = dayjs(report.updatedAt).format("YYYY-MM-DD HH:mm")
   return (
     <SectionCard title="Report Detail">
       <div className="grid gap-4 p-4 text-sm md:grid-cols-3">
         <DetailField label="Report Date" value={report.reportDate} />
         <DetailField label="Project" value={report.projectName} />
         <DetailField label="Created By" value={report.createdByName} />
-        <DetailField label="Created At" value={dayjs(report.createdAt)
-            .format("YYYY-MM-DD HH:mm")} />
-        <DetailField label="Updated At" value={updatedAt !== "Invalid Date" ? updatedAt : "-"} />
+        <DetailField label="Created At" value={formatDateToMin(report.createdAt)} />
+        <DetailField label="Updated At" value={formatDateToMin(report.updatedAt)} />
       </div>
       <div className="grid gap-4 border-t border-gray-200 p-4 lg:grid-cols-2">
         <ContentBlock label="Summary" value={report.summary} />
