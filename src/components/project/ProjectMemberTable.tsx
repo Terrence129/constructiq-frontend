@@ -1,4 +1,5 @@
 import type { ProjectRegistration } from '../../types'
+import {formatDateToMin} from "../../utils/dateUtils.ts";
 
 interface ProjectMemberTableProps {
   deletingRegistrationId: number | null
@@ -80,7 +81,7 @@ export function ProjectMemberTable({
                 </span>
               </td>
               <td className="whitespace-nowrap px-4 py-3 text-gray-700">
-                {member.createdAt}
+                {formatDateToMin(member.createdAt)}
               </td>
               <td className="whitespace-nowrap px-4 py-3">
                 <button
