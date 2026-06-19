@@ -335,6 +335,7 @@ function ProjectMembersPanel({ projectId }: { projectId: number }) {
               ? getRegistrationErrorMessage(addMemberMutation.error)
               : null
           }
+          excludedUserIds={members.map((member) => member.userId)}
           isSubmitting={addMemberMutation.isPending}
           onClose={closeMemberModal}
           onSubmit={(request) => addMemberMutation.mutate(request)}

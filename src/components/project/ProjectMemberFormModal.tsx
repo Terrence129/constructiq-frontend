@@ -1,8 +1,12 @@
 import { useState, type FormEvent, type ReactNode } from 'react'
-import { ProjectMemberRole, type ProjectRegistrationRequest } from '../../types'
+import {
+  ProjectMemberRole,
+  type ProjectRegistrationRequest,
+  type User,
+} from '../../types'
+import { UserSearchSelect } from './UserSearchSelect'
 
 interface ProjectMemberFormState {
-  userId: string
   title: string
   description: string
   role: ProjectMemberRole
@@ -10,13 +14,13 @@ interface ProjectMemberFormState {
 
 interface ProjectMemberFormModalProps {
   errorMessage: string | null
+  excludedUserIds?: number[]
   isSubmitting: boolean
   onClose: () => void
   onSubmit: (request: ProjectRegistrationRequest) => void
 }
 
 const initialFormState: ProjectMemberFormState = {
-  userId: '',
   title: '',
   description: '',
   role: ProjectMemberRole.MEMBER,
@@ -24,11 +28,13 @@ const initialFormState: ProjectMemberFormState = {
 
 export function ProjectMemberFormModal({
   errorMessage,
+  excludedUserIds = [],
   isSubmitting,
   onClose,
   onSubmit,
 }: ProjectMemberFormModalProps) {
   const [form, setForm] = useState<ProjectMemberFormState>(initialFormState)
+  const [selectedUser, setSelectedUser] = useState<User | null>(null)
 
   function updateField<Key extends keyof ProjectMemberFormState>(
     key: Key,
@@ -39,8 +45,13 @@ export function ProjectMemberFormModal({
 
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+
+    if (!selectedUser) {
+      return
+    }
+
     onSubmit({
-      userId: Number(form.userId),
+      userId: selectedUser.id,
       title: optionalString(form.title),
       description: optionalString(form.description),
       role: form.role,
@@ -73,17 +84,15 @@ export function ProjectMemberFormModal({
             </div>
           ) : null}
 
+          <FormField label="User Selection">
+            <UserSearchSelect
+              excludedUserIds={excludedUserIds}
+              selectedUser={selectedUser}
+              onSelect={setSelectedUser}
+            />
+          </FormField>
+
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="User ID">
-              <input
-                className="h-10 w-full border border-gray-300 px-3 outline-none focus:border-ci-blue-800"
-                min={1}
-                required
-                type="number"
-                value={form.userId}
-                onChange={(event) => updateField('userId', event.target.value)}
-              />
-            </FormField>
             <FormField label="Role">
               <select
                 className="h-10 w-full border border-gray-300 px-3 outline-none focus:border-ci-blue-800"
@@ -123,7 +132,7 @@ export function ProjectMemberFormModal({
             </button>
             <button
               className="h-9 bg-ci-blue-800 px-4 text-sm font-semibold text-white hover:bg-ci-blue-900 disabled:cursor-not-allowed disabled:bg-gray-400"
-              disabled={isSubmitting}
+              disabled={isSubmitting || !selectedUser}
               type="submit"
             >
               {isSubmitting ? 'Adding...' : 'Add Member'}

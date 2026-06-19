@@ -4,6 +4,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from 'react-router-dom'
 import { createProject, getProjects } from '../api/projectApi'
 import { ProjectStatusBadge } from '../components/project/ProjectStatusBadge'
+import { UserSearchSelect } from '../components/project/UserSearchSelect'
 import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { useAuth } from '../hooks/useAuth'
@@ -13,6 +14,7 @@ import type {
   ErrorResponse,
   Project,
   ProjectMemberRequest,
+  User,
 } from '../types'
 import { ProjectMemberRole, ProjectStatus, UserRole } from '../types'
 
@@ -29,10 +31,14 @@ interface ProjectFormState {
 }
 
 interface ProjectMemberDraft {
-  userId: string
   title: string
   description: string
   role: ProjectMemberRole
+}
+
+interface InitialProjectMember extends ProjectMemberRequest {
+  userEmail: string
+  userName: string
 }
 
 const initialFormState: ProjectFormState = {
@@ -46,7 +52,6 @@ const initialFormState: ProjectFormState = {
 }
 
 const initialMemberDraft: ProjectMemberDraft = {
-  userId: '',
   title: '',
   description: '',
   role: ProjectMemberRole.MEMBER,
@@ -272,7 +277,8 @@ function CreateProjectModal({
   const [form, setForm] = useState<ProjectFormState>(initialFormState)
   const [memberDraft, setMemberDraft] =
     useState<ProjectMemberDraft>(initialMemberDraft)
-  const [members, setMembers] = useState<ProjectMemberRequest[]>([])
+  const [selectedMemberUser, setSelectedMemberUser] = useState<User | null>(null)
+  const [members, setMembers] = useState<InitialProjectMember[]>([])
 
   function updateField<Key extends keyof ProjectFormState>(
     key: Key,
@@ -289,22 +295,23 @@ function CreateProjectModal({
   }
 
   function addInitialMember() {
-    const userId = Number(memberDraft.userId)
-
-    if (!Number.isInteger(userId) || userId <= 0) {
+    if (!selectedMemberUser) {
       return
     }
 
     setMembers((current) => [
       ...current,
       {
-        userId,
+        userId: selectedMemberUser.id,
+        userEmail: selectedMemberUser.email,
+        userName: selectedMemberUser.name,
         title: optionalString(memberDraft.title),
         description: optionalString(memberDraft.description),
         role: memberDraft.role,
       },
     ])
     setMemberDraft(initialMemberDraft)
+    setSelectedMemberUser(null)
   }
 
   function removeInitialMember(index: number) {
@@ -413,17 +420,13 @@ function CreateProjectModal({
               Initial Project Members
             </div>
             <div className="space-y-4 p-4">
-              <div className="grid gap-3 md:grid-cols-[120px_1fr_1fr_140px_110px]">
-                <input
-                  className="h-9 border border-gray-300 px-3 outline-none focus:border-ci-blue-800"
-                  min={1}
-                  placeholder="User ID"
-                  type="number"
-                  value={memberDraft.userId}
-                  onChange={(event) =>
-                    updateMemberDraft('userId', event.target.value)
-                  }
-                />
+              <UserSearchSelect
+                excludedUserIds={members.map((member) => member.userId)}
+                selectedUser={selectedMemberUser}
+                onSelect={setSelectedMemberUser}
+              />
+
+              <div className="grid gap-3 md:grid-cols-[1fr_1fr_140px_110px]">
                 <input
                   className="h-9 border border-gray-300 px-3 outline-none focus:border-ci-blue-800"
                   placeholder="Title"
@@ -455,6 +458,7 @@ function CreateProjectModal({
                 </select>
                 <button
                   className="h-9 bg-ci-blue-800 px-3 text-sm font-semibold text-white hover:bg-ci-blue-900"
+                  disabled={!selectedMemberUser}
                   onClick={addInitialMember}
                   type="button"
                 >
@@ -467,19 +471,25 @@ function CreateProjectModal({
                   <table className="min-w-full text-left text-sm">
                     <thead className="bg-ci-blue-950 text-xs text-white">
                       <tr>
-                        {['User ID', 'Title', 'Description', 'Role', 'Actions'].map(
-                          (column) => (
+                        {[
+                          'User',
+                          'Email',
+                          'Title',
+                          'Description',
+                          'Role',
+                          'Actions',
+                        ].map((column) => (
                             <th className="px-4 py-3" key={column}>
                               {column}
                             </th>
-                          ),
-                        )}
+                          ))}
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-200">
                       {members.map((member, index) => (
                         <tr key={`${member.userId}-${index}`}>
-                          <td className="px-4 py-3">{member.userId}</td>
+                          <td className="px-4 py-3">{member.userName}</td>
+                          <td className="px-4 py-3">{member.userEmail}</td>
                           <td className="px-4 py-3">{member.title ?? '-'}</td>
                           <td className="px-4 py-3">
                             {member.description ?? '-'}
@@ -568,7 +578,7 @@ function ProjectTableError({ error }: { error: unknown }) {
 
 function toCreateProjectRequest(
   form: ProjectFormState,
-  members: ProjectMemberRequest[],
+  members: InitialProjectMember[],
 ): CreateProjectRequest {
   return {
     name: form.name.trim(),
@@ -578,7 +588,15 @@ function toCreateProjectRequest(
     status: form.status,
     startDate: optionalString(form.startDate),
     endDate: optionalString(form.endDate),
-    members: members.length > 0 ? members : undefined,
+    members:
+      members.length > 0
+        ? members.map((member) => ({
+            userId: member.userId,
+            title: member.title,
+            description: member.description,
+            role: member.role,
+          }))
+        : undefined,
   }
 }
 
