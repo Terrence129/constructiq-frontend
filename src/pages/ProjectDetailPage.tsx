@@ -16,6 +16,11 @@ import {
   updateProject,
 } from '../api/projectApi'
 import {
+  addProjectRegistration,
+  deleteProjectRegistration,
+  getProjectRegistrations,
+} from '../api/registrationApi'
+import {
   createReport,
   deleteReport,
   getReportById,
@@ -36,6 +41,8 @@ import {
 } from '../api/taskApi'
 import { DocumentTable } from '../components/document/DocumentTable'
 import { formatFileSize } from '../components/document/formatFileSize'
+import { ProjectMemberFormModal } from '../components/project/ProjectMemberFormModal'
+import { ProjectMemberTable } from '../components/project/ProjectMemberTable'
 import { ProjectStatusBadge } from '../components/project/ProjectStatusBadge'
 import { RiskFormModal } from '../components/risk/RiskFormModal'
 import { RiskMatrix } from '../components/risk/RiskMatrix'
@@ -53,6 +60,8 @@ import type {
   DocumentRecord,
   ErrorResponse,
   Project,
+  ProjectRegistration,
+  ProjectRegistrationRequest,
   ProgressReport,
   Risk,
   RiskRequest,
@@ -65,6 +74,7 @@ import { ProjectStatus } from '../types'
 
 const tabs = [
   { key: 'overview', label: 'Overview' },
+  { key: 'members', label: 'Members' },
   { key: 'tasks', label: 'Tasks' },
   { key: 'risks', label: 'Risks' },
   { key: 'progressReports', label: 'Progress Reports' },
@@ -198,6 +208,8 @@ export function ProjectDetailPage() {
 
             {activeTab === 'overview' ? (
               <ProjectOverview project={project} />
+            ) : activeTab === 'members' ? (
+              <ProjectMembersPanel projectId={parsedProjectId} />
             ) : activeTab === 'tasks' ? (
               <TaskManagementPanel projectId={parsedProjectId} />
             ) : activeTab === 'risks' ? (
@@ -222,6 +234,110 @@ export function ProjectDetailPage() {
           onClose={() => setIsEditModalOpen(false)}
           onSubmit={(request) => updateProjectMutation.mutate(request)}
           project={project}
+        />
+      ) : null}
+    </>
+  )
+}
+
+function ProjectMembersPanel({ projectId }: { projectId: number }) {
+  const queryClient = useQueryClient()
+  const [isMemberModalOpen, setIsMemberModalOpen] = useState(false)
+  const [deletingRegistrationId, setDeletingRegistrationId] = useState<
+    number | null
+  >(null)
+
+  const memberQueryKey = ['projects', projectId, 'registrations']
+
+  const {
+    data: members = [],
+    error,
+    isError,
+    isLoading,
+  } = useQuery({
+    queryKey: memberQueryKey,
+    queryFn: () => getProjectRegistrations(projectId),
+  })
+
+  const addMemberMutation = useMutation({
+    mutationFn: (request: ProjectRegistrationRequest) =>
+      addProjectRegistration(projectId, request),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: memberQueryKey })
+      closeMemberModal()
+    },
+  })
+
+  const deleteMemberMutation = useMutation({
+    mutationFn: (registrationId: number) =>
+      deleteProjectRegistration(projectId, registrationId),
+    onMutate: (registrationId) => setDeletingRegistrationId(registrationId),
+    onSettled: () => setDeletingRegistrationId(null),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: memberQueryKey })
+    },
+  })
+
+  function closeMemberModal() {
+    setIsMemberModalOpen(false)
+    addMemberMutation.reset()
+  }
+
+  function handleDeleteMember(member: ProjectRegistration) {
+    const confirmed = window.confirm(
+      `Remove ${member.userName} from this project?`,
+    )
+
+    if (confirmed) {
+      deleteMemberMutation.mutate(member.id)
+    }
+  }
+
+  return (
+    <>
+      <SectionCard
+        title="Project Members"
+        toolbar={
+          <button
+            className="h-8 bg-ci-blue-800 px-3 text-xs font-semibold text-white hover:bg-ci-blue-900"
+            onClick={() => setIsMemberModalOpen(true)}
+            type="button"
+          >
+            Add Member
+          </button>
+        }
+      >
+        {isLoading ? <MemberLoadingState /> : null}
+        {isError ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            <div className="font-semibold">Unable to load project members.</div>
+            <div className="mt-1">{getRegistrationErrorMessage(error)}</div>
+          </div>
+        ) : null}
+        {deleteMemberMutation.error ? (
+          <div className="border-t border-red-200 bg-red-50 p-4 text-sm text-ci-red-700">
+            {getRegistrationErrorMessage(deleteMemberMutation.error)}
+          </div>
+        ) : null}
+        {!isLoading && !isError ? (
+          <ProjectMemberTable
+            deletingRegistrationId={deletingRegistrationId}
+            members={members}
+            onDelete={handleDeleteMember}
+          />
+        ) : null}
+      </SectionCard>
+
+      {isMemberModalOpen ? (
+        <ProjectMemberFormModal
+          errorMessage={
+            addMemberMutation.error
+              ? getRegistrationErrorMessage(addMemberMutation.error)
+              : null
+          }
+          isSubmitting={addMemberMutation.isPending}
+          onClose={closeMemberModal}
+          onSubmit={(request) => addMemberMutation.mutate(request)}
         />
       ) : null}
     </>
@@ -1155,6 +1271,16 @@ function DocumentMetadataLoadingState() {
   )
 }
 
+function MemberLoadingState() {
+  return (
+    <div className="space-y-2 p-4">
+      {Array.from({ length: 5 }, (_, index) => (
+        <div className="h-10 animate-pulse bg-gray-100" key={index} />
+      ))}
+    </div>
+  )
+}
+
 function DocumentMetadataCard({ document }: { document: DocumentRecord }) {
   return (
     <SectionCard title="Document Metadata">
@@ -1276,6 +1402,29 @@ function getDocumentErrorMessage(error: unknown): string {
   if (axios.isAxiosError<ErrorResponse>(error)) {
     if (error.response?.status === 403) {
       return 'You do not have permission to manage documents for this project. Only the project creator or a MANAGER can upload or delete documents.'
+    }
+
+    return error.response?.data.message ?? error.message
+  }
+
+  if (error instanceof Error) {
+    return error.message
+  }
+
+  return 'Please verify the backend service is running and try again.'
+}
+
+function getRegistrationErrorMessage(error: unknown): string {
+  if (axios.isAxiosError<ErrorResponse>(error)) {
+    if (error.response?.status === 403) {
+      return 'You do not have permission to manage members for this project. Only the project creator or a MANAGER can add or remove members.'
+    }
+
+    if (error.response?.status === 400) {
+      return (
+        error.response.data.message ||
+        'Unable to add this member. The user may already be registered, or the target user may be the project creator.'
+      )
     }
 
     return error.response?.data.message ?? error.message
