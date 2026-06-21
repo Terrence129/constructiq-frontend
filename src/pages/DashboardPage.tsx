@@ -1,5 +1,6 @@
 import axios from 'axios'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from 'react-router-dom'
 import {
   createDashboardStatisticsSnapshot,
   getDashboardStatistics,
@@ -10,10 +11,15 @@ import { PageHeader } from '../components/ui/PageHeader'
 import { SectionCard } from '../components/ui/SectionCard'
 import { useDocumentTitle } from '../hooks/useDocumentTitle'
 import type { DashboardStatistics, ErrorResponse } from '../types'
+import {
+  getDashboardMetricPath,
+  type DashboardMetricKey,
+} from './dashboardMetricDetails/metricConfig'
 
 const statisticGroups = [
   {
-    title: 'Project Portfolio',
+    title: 'Projects',
+    description: 'Portfolio scale and project status',
     items: [
       ['totalProjects', 'Total Projects'],
       ['activeProjects', 'Active Projects'],
@@ -21,7 +27,8 @@ const statisticGroups = [
     ],
   },
   {
-    title: 'Task Execution',
+    title: 'Tasks',
+    description: 'Delivery workload and overdue work',
     items: [
       ['totalTasks', 'Total Tasks'],
       ['openTasks', 'Open Tasks'],
@@ -30,7 +37,8 @@ const statisticGroups = [
     ],
   },
   {
-    title: 'Risk Control',
+    title: 'Risks',
+    description: 'Exposure, status, and severity',
     items: [
       ['totalRisks', 'Total Risks'],
       ['openRisks', 'Open Risks'],
@@ -39,7 +47,8 @@ const statisticGroups = [
     ],
   },
   {
-    title: 'Records',
+    title: 'Reports',
+    description: 'Progress reporting and document records',
     items: [
       ['progressReports', 'Progress Reports'],
       ['documents', 'Documents'],
@@ -47,7 +56,8 @@ const statisticGroups = [
   },
 ] satisfies Array<{
   title: string
-  items: Array<[keyof DashboardStatistics, string]>
+  description: string
+  items: Array<[DashboardMetricKey, string]>
 }>
 
 const cardDetails: Partial<Record<keyof DashboardStatistics, string>> = {
@@ -149,19 +159,7 @@ function DashboardStatisticsView({
 }) {
   return (
     <>
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        {statisticGroups.flatMap((group) =>
-          group.items.map(([key, label]) => (
-            <MetricCard
-              accent={getMetricAccent(key)}
-              detail={cardDetails[key] ?? 'Dashboard statistic'}
-              key={key}
-              label={label}
-              value={String(statistics[key])}
-            />
-          )),
-        )}
-      </div>
+      <DashboardMetricGroups statistics={statistics} />
 
       <div className="grid gap-5 xl:grid-cols-[1.2fr_0.8fr]">
         <SectionCard title="Statistics Summary">
@@ -205,6 +203,51 @@ function DashboardStatisticsView({
         />
       </div>
     </>
+  )
+}
+
+function DashboardMetricGroups({
+  statistics,
+}: {
+  statistics: DashboardStatistics
+}) {
+  return (
+    <div className="space-y-4">
+      {statisticGroups.map((group) => (
+        <section className="border border-gray-200 bg-gray-50" key={group.title}>
+          <div className="flex flex-col gap-1 border-b border-gray-200 bg-white px-4 py-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <h2 className="text-sm font-semibold text-gray-950">
+                {group.title}
+              </h2>
+              <p className="text-xs text-gray-500">{group.description}</p>
+            </div>
+            <div className="text-xs font-medium text-gray-500">
+              {group.items.length} metrics
+            </div>
+          </div>
+          <div
+            className={`grid gap-4 p-4 ${getMetricGroupGridClass(group.items.length)}`}
+          >
+            {group.items.map(([key, label]) => (
+              <Link
+                aria-label={`View ${label}`}
+                className="block outline-none transition hover:-translate-y-0.5 hover:shadow-sm focus-visible:ring-2 focus-visible:ring-ci-blue-800 focus-visible:ring-offset-2"
+                key={key}
+                to={getDashboardMetricPath(key)}
+              >
+                <MetricCard
+                  accent={getMetricAccent(key)}
+                  detail={cardDetails[key] ?? 'Dashboard statistic'}
+                  label={label}
+                  value={String(statistics[key])}
+                />
+              </Link>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
   )
 }
 
@@ -359,6 +402,18 @@ function getMetricAccent(
   }
 
   return 'blue'
+}
+
+function getMetricGroupGridClass(itemCount: number) {
+  if (itemCount >= 4) {
+    return 'sm:grid-cols-2 xl:grid-cols-4'
+  }
+
+  if (itemCount === 3) {
+    return 'sm:grid-cols-3'
+  }
+
+  return 'sm:grid-cols-2'
 }
 
 function getErrorMessage(error: unknown) {

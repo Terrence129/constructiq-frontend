@@ -1,5 +1,16 @@
 import { apiClient } from './axios'
-import type { Task, TaskRequest } from '../types'
+import type { Task, TaskPriority, TaskRequest, TaskStatus } from '../types'
+
+export interface TaskListParams {
+  priority?: TaskPriority
+  status?: TaskStatus
+}
+
+export async function getTasks(params?: TaskListParams): Promise<Task[]> {
+  const { data } = await apiClient.get<Task[]>('/api/tasks', { params })
+
+  return data
+}
 
 export async function getTasksByProject(projectId: number): Promise<Task[]> {
   const { data } = await apiClient.get<Task[]>(

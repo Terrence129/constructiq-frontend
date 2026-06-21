@@ -5,6 +5,12 @@ import type {
   UpdateProgressReportRequest,
 } from '../types'
 
+export async function getReports(): Promise<ProgressReport[]> {
+  const { data } = await apiClient.get<ProgressReport[]>('/api/progressReports')
+
+  return data
+}
+
 export async function getReportsByProject(
   projectId: number,
 ): Promise<ProgressReport[]> {
