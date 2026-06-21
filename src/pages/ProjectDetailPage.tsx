@@ -2,7 +2,7 @@ import { useState, type ChangeEvent, type FormEvent, type ReactNode } from 'reac
 import axios from 'axios'
 import dayjs from 'dayjs'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Link, useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   deleteDocument,
   downloadDocument,
@@ -89,8 +89,10 @@ export function ProjectDetailPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const { projectId } = useParams()
+  const [searchParams] = useSearchParams()
   const parsedProjectId = Number(projectId)
-  const [activeTab, setActiveTab] = useState<TabKey>('overview')
+  const requestedTab = getTabKey(searchParams.get('tab'))
+  const [activeTab, setActiveTab] = useState<TabKey>(requestedTab ?? 'overview')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
 
   const invalidProjectId = !Number.isInteger(parsedProjectId) || parsedProjectId <= 0
@@ -1206,6 +1208,10 @@ function formatProjectStatus(status: ProjectStatus): string {
     .split('_')
     .map((part) => part.charAt(0) + part.slice(1).toLowerCase())
     .join(' ')
+}
+
+function getTabKey(value: string | null): TabKey | null {
+  return tabs.some((tab) => tab.key === value) ? (value as TabKey) : null
 }
 
 function getProjectErrorMessage(error: unknown): string {

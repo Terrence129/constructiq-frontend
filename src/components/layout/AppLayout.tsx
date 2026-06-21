@@ -4,10 +4,6 @@ import { useAuth } from '../../hooks/useAuth'
 const navItems = [
   { to: '/dashboard', label: 'Executive Dashboard' },
   { to: '/projects', label: 'Project Registry' },
-  { to: '/tasks', label: 'Task Supervision' },
-  { to: '/risks', label: 'Risk Control' },
-  { to: '/reports', label: 'Progress Reports' },
-  { to: '/documents', label: 'Document Archive' },
   { to: '/ai-analysis', label: 'AI Analysis' },
 ]
 

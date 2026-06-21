@@ -61,6 +61,7 @@ New users registered through `POST /api/auth/register` are created with role `US
 | Update project | Project creator or project member with role `MANAGER`. |
 | Delete project | Project creator or project member with role `MANAGER`. |
 | Add/list/remove project registrations | Project creator or project member with role `MANAGER`. |
+| List/search/read users | Authenticated user. Returns public user fields only. |
 | List tasks under a project | Project creator or registered project member. |
 | Read a task | Project creator or registered project member. |
 | Create/update/delete a task | Project creator or project member with role `MANAGER`. |
@@ -258,6 +259,102 @@ Example response:
   }
 }
 ```
+
+## Users API
+
+User endpoints return only public user fields used by clients for member selection and display. Password hashes and other internal account data are never returned.
+
+### User Object
+
+```json
+{
+  "id": 2,
+  "name": "Jane Builder",
+  "email": "jane.builder@example.com",
+  "role": "USER"
+}
+```
+
+### List Users
+
+Returns all users ordered by name, email, and id.
+
+```http
+GET /api/users
+Authorization: Bearer <token>
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 2,
+    "name": "Jane Builder",
+    "email": "jane.builder@example.com",
+    "role": "USER"
+  }
+]
+```
+
+### Search Users
+
+Search is handled by the same list endpoint with optional query parameters. `name` and `email` are case-insensitive partial matches. When both are provided, both filters must match.
+
+```http
+GET /api/users?name=jane&email=example.com
+Authorization: Bearer <token>
+```
+
+Query parameters:
+
+| Parameter | Type | Required | Notes |
+| --- | --- | --- | --- |
+| `name` | string | No | Case-insensitive partial match on user name. |
+| `email` | string | No | Case-insensitive partial match on user email. |
+
+Example response:
+
+```json
+[
+  {
+    "id": 2,
+    "name": "Jane Builder",
+    "email": "jane.builder@example.com",
+    "role": "USER"
+  }
+]
+```
+
+### Get User By ID
+
+```http
+GET /api/users/{userId}
+Authorization: Bearer <token>
+```
+
+Path parameters:
+
+| Parameter | Type | Required |
+| --- | --- | --- |
+| `userId` | number | Yes |
+
+Example response:
+
+```json
+{
+  "id": 2,
+  "name": "Jane Builder",
+  "email": "jane.builder@example.com",
+  "role": "USER"
+}
+```
+
+Failure cases:
+
+| Status | Reason |
+| --- | --- |
+| `404` | User not found. |
 
 ## Projects API
 
@@ -749,6 +846,49 @@ Example response:
 ]
 ```
 
+### List My Tasks
+
+Returns tasks under projects the authenticated user can access. By default, this returns all accessible tasks. Use `status` and `priority` query parameters to filter the result.
+
+```http
+GET /api/tasks
+Authorization: Bearer <token>
+```
+
+Query parameters:
+
+| Parameter | Type | Required | Allowed values |
+| --- | --- | --- | --- |
+| `status` | TaskStatus | No | `TODO`, `IN_PROGRESS`, `BLOCKED`, `DONE` |
+| `priority` | TaskPriority | No | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` |
+
+Example filtered request:
+
+```http
+GET /api/tasks?status=IN_PROGRESS&priority=HIGH
+Authorization: Bearer <token>
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 500,
+    "projectId": 10,
+    "projectName": "Harbour Tower",
+    "title": "Inspect foundation works",
+    "description": "Confirm foundation preparation is complete.",
+    "status": "IN_PROGRESS",
+    "priority": "HIGH",
+    "assignee": "Jane Builder",
+    "dueDate": "2026-07-15",
+    "createdAt": "2026-06-17T15:55:37.123",
+    "updatedAt": null
+  }
+]
+```
+
 ### Get Task By ID
 
 The authenticated user must be the project creator or a registered project member.
@@ -909,6 +1049,37 @@ The authenticated user must be the project creator or a registered project membe
 
 ```http
 GET /api/projects/{projectId}/progressReports
+Authorization: Bearer <token>
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 700,
+    "projectId": 10,
+    "projectName": "Harbour Tower",
+    "reportDate": "2026-07-08",
+    "summary": "Weekly progress update.",
+    "completedWork": "Foundation inspection completed.",
+    "delayedWork": "None.",
+    "issues": "None.",
+    "nextActions": "Prepare next inspection checklist.",
+    "createdById": 1,
+    "createdByName": "Admin User",
+    "createdAt": "2026-06-17T15:55:37.123",
+    "updatedAt": null
+  }
+]
+```
+
+### List My Progress Reports
+
+Returns progress reports under projects the authenticated user can access. This includes projects created by the current user and projects where the current user is registered.
+
+```http
+GET /api/progressReports
 Authorization: Bearer <token>
 ```
 
@@ -1103,6 +1274,57 @@ The authenticated user must be the project creator or a registered project membe
 ```http
 GET /api/projects/{projectId}/risks
 Authorization: Bearer <token>
+```
+
+### List My Risks
+
+Returns risks under projects the authenticated user can access. By default, this returns all accessible risks. Use `category`, `riskLevel`, and `status` query parameters to filter the result.
+
+```http
+GET /api/risks
+Authorization: Bearer <token>
+```
+
+Query parameters:
+
+| Parameter | Type | Required | Allowed values |
+| --- | --- | --- | --- |
+| `category` | RiskCategory | No | `SAFETY`, `SCHEDULE`, `COST`, `QUALITY`, `DESIGN`, `PROCUREMENT`, `ENVIRONMENT`, `LEGAL`, `GENERAL` |
+| `riskLevel` | RiskLevel | No | `LOW`, `MEDIUM`, `HIGH`, `CRITICAL` |
+| `status` | RiskStatus | No | `OPEN`, `MITIGATING`, `MONITORING`, `CLOSED` |
+
+Example filtered request:
+
+```http
+GET /api/risks?category=SCHEDULE&riskLevel=CRITICAL&status=OPEN
+Authorization: Bearer <token>
+```
+
+Example response:
+
+```json
+[
+  {
+    "id": 900,
+    "projectId": 10,
+    "projectName": "Harbour Tower",
+    "title": "Steel delivery delay",
+    "description": "Structural steel delivery may delay critical path work.",
+    "category": "SCHEDULE",
+    "probability": 4,
+    "impact": 5,
+    "severity": 20,
+    "riskLevel": "CRITICAL",
+    "status": "OPEN",
+    "mitigationPlan": "Confirm alternate supplier and resequence non-critical tasks.",
+    "owner": "Site Manager",
+    "targetDate": "2026-07-20",
+    "createdById": 1,
+    "createdByName": "Admin User",
+    "createdAt": "2026-06-17T18:42:38.000",
+    "updatedAt": null
+  }
+]
 ```
 
 ### Get Risk By ID

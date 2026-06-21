@@ -1,5 +1,23 @@
 import { apiClient } from './axios'
-import type { Risk, RiskRequest } from '../types'
+import type {
+  Risk,
+  RiskCategory,
+  RiskLevel,
+  RiskRequest,
+  RiskStatus,
+} from '../types'
+
+export interface RiskListParams {
+  category?: RiskCategory
+  riskLevel?: RiskLevel
+  status?: RiskStatus
+}
+
+export async function getRisks(params?: RiskListParams): Promise<Risk[]> {
+  const { data } = await apiClient.get<Risk[]>('/api/risks', { params })
+
+  return data
+}
 
 export async function getRisksByProject(projectId: number): Promise<Risk[]> {
   const { data } = await apiClient.get<Risk[]>(
