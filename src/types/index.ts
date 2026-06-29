@@ -1,4 +1,13 @@
 export type { ErrorResponse } from './common'
+export type {
+  AiAdviceRequest,
+  AiAdviceResponse,
+  AiChatHistoryMessage,
+  AiChatRequest,
+  AiChatResponse,
+  AiChatRole,
+  AiContextSource,
+} from './ai'
 export {
   type AuthResponse,
   type LoginRequest,

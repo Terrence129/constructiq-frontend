@@ -20,15 +20,15 @@ export function AppLayout() {
     <div className="min-h-screen bg-gray-100">
       <header className="fixed inset-x-0 top-0 z-20 h-14 border-b border-blue-950 bg-ci-blue-950 text-white shadow">
         <div className="flex h-full items-center justify-between px-5">
-          <div className="flex items-center gap-4">
-            <div className="flex h-8 w-8 items-center justify-center bg-ci-red-700 text-sm font-bold">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-8 w-8 shrink-0 items-center justify-center bg-ci-red-700 text-sm font-bold">
               CI
             </div>
-            <div>
-              <div className="text-base font-semibold">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold sm:text-base">
                 ConstructIQ Project Management Platform
               </div>
-              <div className="text-xs text-blue-100">
+              <div className="hidden truncate text-xs text-blue-100 sm:block">
                 Full-cycle construction project control system
               </div>
             </div>
