@@ -39,6 +39,7 @@ import {
   getTasksByProject,
   updateTask,
 } from '../api/taskApi'
+import { AiAssistantPanel } from '../components/ai/AiAssistantPanel'
 import { DocumentTable } from '../components/document/DocumentTable'
 import { formatFileSize } from '../components/document/formatFileSize'
 import { ProjectMemberFormModal } from '../components/project/ProjectMemberFormModal'
@@ -221,8 +222,10 @@ export function ProjectDetailPage() {
             ) : activeTab === 'documents' ? (
               <DocumentManagementPanel projectId={parsedProjectId} />
             ) : (
-              <PlaceholderTab
-                label={tabs.find((tab) => tab.key === activeTab)?.label ?? 'Module'}
+              <AiAssistantPanel
+                initialProjectId={parsedProjectId}
+                lockProjectSelection
+                projectName={project.name}
               />
             )}
           </>
@@ -1021,16 +1024,6 @@ function OverviewField({
         {formatNullable(value)}
       </div>
     </div>
-  )
-}
-
-function PlaceholderTab({ label }: { label: string }) {
-  return (
-    <SectionCard title={label}>
-      <div className="p-6 text-sm text-gray-600">
-        {label} content will be implemented in the next module step.
-      </div>
-    </SectionCard>
   )
 }
 
